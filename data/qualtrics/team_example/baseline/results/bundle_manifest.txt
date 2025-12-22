@@ -1,0 +1,9 @@
+TEAM_SLUG: team_example
+WAVE: baseline
+CREATED_AT: 2025-12-22 14:14:06.293776
+
+FILES_INCLUDED:
+ - annotations_avg.csv
+ - annotations_app.csv
+ - sample_avg.csv
+ - sample_app.csv

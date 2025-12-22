@@ -1,0 +1,7 @@
+# R / Shiny artifacts
+.Rhistory
+.RData
+.Rproj.user/
+
+# macOS
+.DS_Store

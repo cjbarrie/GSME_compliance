@@ -458,8 +458,18 @@ server <- function(input, output, session) {
     }
     
     df <- tasks()
+    if (nrow(df) == 0) return(tags$div("No tasks loaded."))
+    
     type <- state$phase
-    done <- if (nrow(anns[[type]]) == 0) 0 else n_distinct(anns[[type]]$task_id)
+    
+    done <- 0L
+    if (nrow(anns[[type]]) > 0) {
+      done <- anns[[type]] %>%
+        filter(!is.na(task_id) & nzchar(task_id)) %>%
+        summarise(n = dplyr::n_distinct(task_id)) %>%
+        pull(n)
+      done <- ifelse(length(done) == 0 || is.na(done), 0L, as.integer(done))
+    }
     
     tags$div(
       tags$div(class="big", paste0("Task ", idx(), " / ", nrow(df))),
@@ -469,17 +479,31 @@ server <- function(input, output, session) {
   
   output$progress_bar <- renderUI({
     if (state$phase == "done") return(NULL)
+    
     df <- tasks()
     if (nrow(df) == 0) return(NULL)
-    pct <- round(100 * (idx() / nrow(df)), 1)
+    
+    type <- state$phase
+    
+    done <- 0L
+    if (nrow(anns[[type]]) > 0) {
+      done <- anns[[type]] %>%
+        filter(!is.na(task_id) & nzchar(task_id)) %>%
+        summarise(n = dplyr::n_distinct(task_id)) %>%
+        pull(n)
+      done <- ifelse(length(done) == 0 || is.na(done), 0L, as.integer(done))
+    }
+    
+    pct_done <- round(100 * (done / nrow(df)), 1)
     
     tags$div(
       class = "panel",
-      tags$div(class = "muted", paste0("Progress: ", pct, "%")),
+      tags$div(class = "muted", paste0("Completion: ", pct_done, "%")),
       tags$div(class = "progress-bar-wrap",
-               tags$div(class = "progress-bar-fill", style = paste0("width:", pct, "%;")))
+               tags$div(class = "progress-bar-fill", style = paste0("width:", pct_done, "%;")))
     )
   })
+  
   
   output$header <- renderUI({
     if (state$phase == "done") return(NULL)

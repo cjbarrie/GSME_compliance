@@ -1,6 +1,6 @@
-# README — Screenshot Compliance Checks (Qualtrics → Wrangle → Shiny Annotation → Bundle)
+# Screenshot Compliance Check Pipeline for Global Social Media Experiment
 
-This repository automates a manual screenshot compliance-check workflow:
+This repository automates a manual screenshot compliance-check workflow for the Global Social Media Experiment:
 
 1. **Download** Qualtrics responses + screenshot uploads
 2. **Wrangle** into standardized CSVs for annotation
@@ -62,6 +62,14 @@ Or place in `~/.Renviron`:
 QUALTRICS_API_KEY=YOUR_KEY_HERE
 ```
 
+The easiest way to set your API key in .Renviron is with:
+
+```r
+usethis::edit_r_environ()
+```
+
+Once you have set it, you will need to restart R for it become active. 
+
 ### 3) Confirm Qualtrics data center
 
 Your download scripts contain something like:
@@ -70,7 +78,7 @@ Your download scripts contain something like:
 BASE_URL <- "ca1.qualtrics.com"
 ```
 
-Change it if your Qualtrics account uses a different data center.
+Change it if your Qualtrics account uses a different data center. You can find details on how to find the datacenter your Qualtrics subscription is using with by reading the following short [guide](https://www.qualtrics.com/support/integrations/api-integration/finding-qualtrics-ids/#LocatingtheDatacenterID) on the Qualtrics website.
 
 ---
 
@@ -108,11 +116,17 @@ project/
           ...same structure...
 ```
 
-`<TEAM_SLUG>` is a short folder-safe team identifier (e.g., `team_01`, `labA`, `oxford_team`).
+`<TEAM_SLUG>` is a short folder-safe team identifier (e.g., `GB`, `US`). **Please set the team name as the ISO2 for your country team**. You'll find a list of Alpha-2 ISO codes [here](http://iso.org/obp/ui/#search).
 
 ---
 
 ## Quick start (what a team should do)
+
+First, you should locate the survey ID for the baseline (treatment assignment) and endline (post-treatment) surveys. These are the surveys where we ask respondents, respectively, to upload screenshots of their pre-experiment social media usage and their post-experiment social media usage. 
+
+You'll find the Survey ID for each individual survey by accessing the survey in question on Qualtrics. You will then find the survey ID in the URL for that survey. It will begin with `SV_*` as in the below:
+
+![qualtrics1.png](qualtrics1.png)
 
 ### A) Baseline
 
@@ -144,7 +158,7 @@ Rscript 03_run_app.R
 Rscript 04_bundle_results.R
 ```
 
-After bundling, send the ZIP file back.
+After bundling, send the ZIP file back to @cb5691@nyu.edu.
 
 ---
 
@@ -243,17 +257,6 @@ To regenerate samples:
 * delete `results/sample_avg.csv` and/or `results/sample_app.csv`
 * re-run `03_run_app.R`
 
-### Optional: change sample size without editing code
-
-Set environment variables before running:
-
-```bash
-export ANNOT_N_AVG=150
-export ANNOT_N_APP=150
-export ANNOT_SEED=999
-Rscript 03_run_app.R
-```
-
 ### What gets saved
 
 The app creates/updates:
@@ -295,7 +298,7 @@ The bundle includes:
 * `sample_app.csv`
 * (optionally) a small manifest of the bundle contents
 
-Send the ZIP back to the study lead.
+Send the ZIP back to the compliance lead, Christopher Barrie, at cb5691@nyu.edu.
 
 ---
 
@@ -306,41 +309,5 @@ After completing baseline or endline:
 ✅ Send back the ZIP created by `04_bundle_results.R`:
 
 * `bundle_<TEAM_SLUG>_<WAVE>_<timestamp>.zip`
-
----
-
-## Common issues & fixes
-
-### “No usable screenshots found on disk”
-
-Meaning: the sample builder couldn’t find any existing image files.
-
-Fix:
-
-* Confirm screenshots exist under:
-
-  * `.../<wave>/uploads/<ResponseId>/`
-* Confirm `uploaded_files_manifest.csv` has `ok == TRUE` and `saved_path` populated
-* Re-run the download script, then wrangle again
-
-### Qualtrics API 500 errors
-
-Qualtrics sometimes returns transient internal errors.
-
-Fix:
-
-* Re-run the download script (it includes retry logic)
-* Try again later if Qualtrics is unstable
-* Prefer hard-coded `SURVEY_ID` (already used)
-
-### Wrong device column name
-
-If Qualtrics changes the field name (e.g., `iPhoneorAndroid2` vs `iPhoneorAndroid3`), edit `DEVICE_COL` in the relevant wrangle script.
-
----
-
-## (Included) 04_bundle_results.R
-
-This repo includes `04_bundle_results.R`, which zips the results folder for easy return. If you move files around, ensure the app and bundle script still point to the same `data/qualtrics/<TEAM_SLUG>/<WAVE>/results/` directory.
 
 ---

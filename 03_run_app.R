@@ -154,6 +154,21 @@ build_or_load_sample <- function(type = c("avg", "app"), df, n, seed) {
   samp
 }
 
+fmt_day <- function(device, day) {
+  device <- as.character(device)
+  day <- as.character(day)
+  if (is.na(device) || !nzchar(device)) return(NA_character_)
+  if (!grepl("android", tolower(device))) return(NA_character_)
+  if (is.na(day) || !nzchar(day)) return(NA_character_)
+  day
+}
+
+fmt_hm <- function(h, m) {
+  h <- ifelse(is.na(h), "", as.character(h))
+  m <- ifelse(is.na(m), "", as.character(m))
+  paste0(h, "h ", m, "m")
+}
+
 # ----------------------------
 # Load data + create samples
 # ----------------------------
@@ -170,31 +185,55 @@ ann_avg <- load_annotations(ANN_AVG_PATH)
 ann_app <- load_annotations(ANN_APP_PATH)
 
 # ----------------------------
-# UI
+# UI (no keyboard shortcuts; click-to-fullscreen kept)
 # ----------------------------
 ui <- fluidPage(
-  tags$head(tags$style(HTML("
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
-    .muted { color: #666; }
-    .big { font-size: 18px; }
-    .panel { padding: 12px; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
-    .screenshot-wrap {
-      max-height: 55vh;
-      overflow: auto;
-      border: 1px solid #eee;
-      border-radius: 10px;
-      padding: 6px;
-      background: #fafafa;
-    }
-    .screenshot-wrap img {
-      max-width: 100%;
-      height: auto;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto;
-    }
-    .tight-table td, .tight-table th { padding: 6px !important; }
-  "))),
+  tags$head(
+    tags$style(HTML("
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+      .muted { color: #666; }
+      .panel { padding: 12px; border: 1px solid #ddd; border-radius: 12px; background: #fff; }
+      .big { font-size: 18px; }
+      .tight-table td, .tight-table th { padding: 6px !important; }
+      .phase-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #f2f2f2; font-weight: 600; }
+
+      .screenshot-wrap {
+        height: 70vh;
+        overflow: auto;
+        border: 1px solid #eee;
+        border-radius: 12px;
+        padding: 8px;
+        background: #fafafa;
+      }
+      .screenshot-wrap img {
+        display: block;
+        margin: 0 auto;
+        cursor: zoom-in;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .progress-bar-wrap { height: 10px; border-radius: 999px; background: #eee; overflow: hidden; }
+      .progress-bar-fill { height: 10px; background: #111; width: 0%; }
+      .meta-grid { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; }
+      .meta-k { font-weight: 600; color: #444; }
+      .meta-v { color: #111; }
+    ")),
+    tags$script(HTML("
+      // Click-to-fullscreen on any screenshot image
+      document.addEventListener('click', function(e) {
+        var img = e.target;
+        if (!img) return;
+        if (img.tagName && img.tagName.toLowerCase() === 'img') {
+          var parent = img.closest('.screenshot-wrap');
+          if (parent) {
+            Shiny.setInputValue('img_src_clicked', img.getAttribute('src'), {priority:'event'});
+          }
+        }
+      });
+    "))
+  ),
+  
   titlePanel(paste0("Manual Screenshot Annotation (", TEAM_SLUG, " / ", WAVE, ")")),
   
   sidebarLayout(
@@ -206,11 +245,12 @@ ui <- fluidPage(
           hr(),
           textInput("reviewer", "Reviewer name", ""),
           hr(),
-          # No task type selector anymore — forced Avg then App
           uiOutput("phase_label"),
           hr(),
-          actionButton("prev_btn", "← Prev", class="big"),
-          actionButton("next_btn", "Next →", class="big"),
+          fluidRow(
+            column(6, actionButton("prev_btn", "← Prev", class="big")),
+            column(6, actionButton("next_btn", "Next →", class="big"))
+          ),
           numericInput("jump", "Jump to index", value = 1, min = 1, step = 1),
           actionButton("go_btn", "Go"),
           hr(),
@@ -219,16 +259,23 @@ ui <- fluidPage(
           radioButtons("screenshot_correct", "Correct screenshot?", choices = c("Yes","No","Unsure")),
           radioButtons("numbers_match", "Numbers match screenshot?", choices = c("Yes","No","Unsure")),
           textAreaInput("notes", "Notes (optional)", value = "", rows = 4),
-          div(class="muted", "Auto-saves on Next/Prev/Go.")
+          div(class="muted", "Tip: click the screenshot to open fullscreen.")
       )
     ),
+    
     mainPanel(
       width = 8,
       uiOutput("header"),
       br(),
-      uiOutput("numbers_panel"),
+      uiOutput("progress_bar"),
       br(),
-      uiOutput("images_panel"),
+      
+      # Side-by-side: info card + screenshot
+      fluidRow(
+        column(4, uiOutput("numbers_panel")),
+        column(8, uiOutput("images_panel"))
+      ),
+      
       br(),
       uiOutput("done_panel")
     )
@@ -242,8 +289,7 @@ server <- function(input, output, session) {
   
   # phase: "avg" then "app" then "done"
   state <- reactiveValues(phase = "avg", i_avg = 1L, i_app = 1L)
-  
-  anns <- reactiveValues(avg = ann_avg, app = ann_app)
+  anns  <- reactiveValues(avg = ann_avg, app = ann_app)
   
   tasks <- reactive({
     if (state$phase == "avg") return(avg_tasks)
@@ -279,6 +325,8 @@ server <- function(input, output, session) {
     if (is.null(r)) return()
     
     type <- state$phase
+    if (!type %in% c("avg","app")) return()
+    
     cur  <- standardize_annotations(anns[[type]])
     hit  <- cur %>% filter(task_id == as.character(r$task_id[[1]]))
     
@@ -298,7 +346,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, "jump", value = idx(), min = 1, max = nrow(tasks()))
   }, ignoreInit = TRUE)
   
-  # Save current response (called on Next/Prev/Go)
+  # Save current response (auto-called)
   do_save <- function() {
     r <- current()
     if (is.null(r)) return()
@@ -325,12 +373,11 @@ server <- function(input, output, session) {
     if (type == "avg") save_annotations(ANN_AVG_PATH, cur2) else save_annotations(ANN_APP_PATH, cur2)
   }
   
-  # Auto-advance: if finishing avg, switch to app; if finishing app, done.
   advance_phase_if_needed <- function() {
     if (state$phase == "avg") {
       if (state$i_avg > nrow(avg_tasks)) {
         state$phase <- "app"
-        state$i_avg <- nrow(avg_tasks) # clamp
+        state$i_avg <- nrow(avg_tasks)
         state$i_app <- max(1L, state$i_app)
       }
     } else if (state$phase == "app") {
@@ -343,21 +390,15 @@ server <- function(input, output, session) {
   
   observeEvent(input$next_btn, {
     do_save()
-    if (state$phase == "avg") {
-      state$i_avg <- state$i_avg + 1L
-    } else if (state$phase == "app") {
-      state$i_app <- state$i_app + 1L
-    }
+    if (state$phase == "avg") state$i_avg <- state$i_avg + 1L
+    else if (state$phase == "app") state$i_app <- state$i_app + 1L
     advance_phase_if_needed()
   })
   
   observeEvent(input$prev_btn, {
     do_save()
-    if (state$phase == "avg") {
-      state$i_avg <- max(1L, state$i_avg - 1L)
-    } else if (state$phase == "app") {
-      state$i_app <- max(1L, state$i_app - 1L)
-    }
+    if (state$phase == "avg") state$i_avg <- max(1L, state$i_avg - 1L)
+    else if (state$phase == "app") state$i_app <- max(1L, state$i_app - 1L)
   })
   
   observeEvent(input$go_btn, {
@@ -365,10 +406,47 @@ server <- function(input, output, session) {
     set_idx(input$jump)
   })
   
+  # -------- Fullscreen modal: click-to-open kept --------
+  observeEvent(input$img_src_clicked, {
+    src <- as.character(input$img_src_clicked)
+    if (is.na(src) || !nzchar(src)) return()
+    
+    showModal(modalDialog(
+      title = "Fullscreen screenshot",
+      size = "l",
+      easyClose = TRUE,
+      footer = tagList(modalButton("Close")),
+      sliderInput("modal_zoom", "Zoom", min = 0.5, max = 4, value = 1, step = 0.1),
+      uiOutput("modal_image_ui")
+    ))
+  }, ignoreInit = TRUE)
+  
+  output$modal_image_ui <- renderUI({
+    req(input$modal_zoom)
+    src <- as.character(input$img_src_clicked)
+    if (is.na(src) || !nzchar(src)) return(tags$div("No image source available."))
+    
+    tags$div(
+      style = "max-height:75vh; overflow:auto; border:1px solid #eee; border-radius:12px; padding:8px; background:#fafafa;",
+      tags$img(
+        src = src,
+        style = paste0(
+          "transform: scale(", as.numeric(input$modal_zoom), ");",
+          "transform-origin: top left;",
+          "display:block;",
+          "max-width:none;"
+        )
+      )
+    )
+  })
+  
+  # ----------------------------
+  # Render UI bits
+  # ----------------------------
   output$phase_label <- renderUI({
-    if (state$phase == "avg") tags$div(class="big", "Phase: Average screenshots")
-    else if (state$phase == "app") tags$div(class="big", "Phase: App-level screenshots")
-    else tags$div(class="big", "Phase: Done")
+    if (state$phase == "avg") tags$div(class="phase-pill", "Phase: Average screenshots")
+    else if (state$phase == "app") tags$div(class="phase-pill", "Phase: App-level screenshots")
+    else tags$div(class="phase-pill", "Phase: Done")
   })
   
   output$progress <- renderUI({
@@ -389,54 +467,85 @@ server <- function(input, output, session) {
     )
   })
   
+  output$progress_bar <- renderUI({
+    if (state$phase == "done") return(NULL)
+    df <- tasks()
+    if (nrow(df) == 0) return(NULL)
+    pct <- round(100 * (idx() / nrow(df)), 1)
+    
+    tags$div(
+      class = "panel",
+      tags$div(class = "muted", paste0("Progress: ", pct, "%")),
+      tags$div(class = "progress-bar-wrap",
+               tags$div(class = "progress-bar-fill", style = paste0("width:", pct, "%;")))
+    )
+  })
+  
   output$header <- renderUI({
     if (state$phase == "done") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
-    
-    day_txt <- if ("screenshot_day" %in% names(r) && !is.na(r$screenshot_day[[1]]) && nzchar(r$screenshot_day[[1]])) {
-      paste0(" | Day: ", r$screenshot_day[[1]])
-    } else ""
-    
-    tags$div(
-      tags$h3(paste0("Task: ", r$task_id[[1]])),
-      tags$div(class="muted",
-               paste0("Respondent: ", r$respondent_id[[1]],
-                      " | Device: ", if ("device" %in% names(r)) r$device[[1]] else "NA",
-                      day_txt))
-    )
+    tags$div(tags$h3(paste0("Task: ", r$task_id[[1]])))
   })
   
   output$numbers_panel <- renderUI({
     if (state$phase == "done") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
     
+    device <- if ("device" %in% names(r)) as.character(r$device[[1]]) else NA_character_
+    day    <- if ("screenshot_day" %in% names(r)) as.character(r$screenshot_day[[1]]) else NA_character_
+    day2   <- fmt_day(device, day)
+    
+    meta <- list(
+      tags$div(class="meta-k", "Respondent"), tags$div(class="meta-v", as.character(r$respondent_id[[1]])),
+      tags$div(class="meta-k", "Device"),    tags$div(class="meta-v", ifelse(is.na(device) | !nzchar(device), "NA", device))
+    )
+    if (!is.na(day2) && nzchar(day2)) {
+      meta <- c(meta,
+                list(tags$div(class="meta-k", "Day (Android)"), tags$div(class="meta-v", day2)))
+    }
+    
     if (state$phase == "avg") {
-      tags$div(class="panel",
-               tags$h4("Reported total screen time"),
-               tags$p(class="big", paste0("Hours: ", r$total_hours[[1]], "   Minutes: ", r$total_minutes[[1]]))
+      h <- if ("total_hours" %in% names(r)) r$total_hours[[1]] else NA
+      m <- if ("total_minutes" %in% names(r)) r$total_minutes[[1]] else NA
+      
+      tags$div(
+        class="panel",
+        tags$h4("Check total screen time"),
+        tags$div(class="big", tags$strong(fmt_hm(h, m))),
+        tags$hr(),
+        tags$div(class="meta-grid", meta),
+        tags$hr(),
+        tags$div(class="muted", "Click screenshot to open fullscreen.")
       )
     } else {
       getv <- function(nm) if (nm %in% names(r)) r[[nm]][[1]] else NA
-      tags$div(class="panel",
-               tags$h4("Reported app screen time"),
-               tags$table(
-                 class="table table-striped tight-table",
-                 tags$thead(tags$tr(tags$th("App"), tags$th("Hours"), tags$th("Minutes"))),
-                 tags$tbody(
-                   tags$tr(tags$td("Instagram"), tags$td(getv("instagram_hours")), tags$td(getv("instagram_minutes"))),
-                   tags$tr(tags$td("Facebook"),  tags$td(getv("facebook_hours")),  tags$td(getv("facebook_minutes"))),
-                   tags$tr(tags$td("TikTok"),    tags$td(getv("tiktok_hours")),    tags$td(getv("tiktok_minutes"))),
-                   tags$tr(tags$td("Twitter"),   tags$td(getv("twitter_hours")),   tags$td(getv("twitter_minutes")))
-                 )
-               )
+      
+      tags$div(
+        class="panel",
+        tags$h4("Check app screen time"),
+        tags$table(
+          class="table table-striped tight-table",
+          tags$thead(tags$tr(tags$th("App"), tags$th("Hours"), tags$th("Minutes"))),
+          tags$tbody(
+            tags$tr(tags$td("Instagram"), tags$td(getv("instagram_hours")), tags$td(getv("instagram_minutes"))),
+            tags$tr(tags$td("Facebook"),  tags$td(getv("facebook_hours")),  tags$td(getv("facebook_minutes"))),
+            tags$tr(tags$td("TikTok"),    tags$td(getv("tiktok_hours")),    tags$td(getv("tiktok_minutes"))),
+            tags$tr(tags$td("Twitter"),   tags$td(getv("twitter_hours")),   tags$td(getv("twitter_minutes")))
+          )
+        ),
+        tags$hr(),
+        tags$div(class="meta-grid", meta),
+        tags$hr(),
+        tags$div(class="muted", "Click screenshot to open fullscreen.")
       )
     }
   })
   
+  # Images rendered via renderImage so local files serve correctly
   output$img_avg <- renderImage({
     if (state$phase != "avg") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
-    p <- as.character(r$total_screenshot_path[[1]])
+    p <- if ("total_screenshot_path" %in% names(r)) as.character(r$total_screenshot_path[[1]]) else NA_character_
     if (!file_ok1(p)) return(NULL)
     list(src = p, contentType = guess_content_type(p), alt = "screenshot")
   }, deleteFile = FALSE)
@@ -444,7 +553,7 @@ server <- function(input, output, session) {
   output$img_app1 <- renderImage({
     if (state$phase != "app") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
-    p <- as.character(r$app_screenshot1_path[[1]])
+    p <- if ("app_screenshot1_path" %in% names(r)) as.character(r$app_screenshot1_path[[1]]) else NA_character_
     if (!file_ok1(p)) return(NULL)
     list(src = p, contentType = guess_content_type(p), alt = "screenshot 1")
   }, deleteFile = FALSE)
@@ -452,7 +561,7 @@ server <- function(input, output, session) {
   output$img_app2 <- renderImage({
     if (state$phase != "app") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
-    p <- as.character(r$app_screenshot2_path[[1]])
+    p <- if ("app_screenshot2_path" %in% names(r)) as.character(r$app_screenshot2_path[[1]]) else NA_character_
     if (!file_ok1(p)) return(NULL)
     list(src = p, contentType = guess_content_type(p), alt = "screenshot 2")
   }, deleteFile = FALSE)
@@ -460,7 +569,7 @@ server <- function(input, output, session) {
   output$img_app3 <- renderImage({
     if (state$phase != "app") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
-    p <- as.character(r$app_screenshot3_path[[1]])
+    p <- if ("app_screenshot3_path" %in% names(r)) as.character(r$app_screenshot3_path[[1]]) else NA_character_
     if (!file_ok1(p)) return(NULL)
     list(src = p, contentType = guess_content_type(p), alt = "screenshot 3")
   }, deleteFile = FALSE)
@@ -471,20 +580,27 @@ server <- function(input, output, session) {
     
     if (state$phase == "avg") {
       tags$div(class="panel",
-               tags$h4("Screenshot"),
+               tags$h4("Screenshot (click to fullscreen)"),
                tags$div(class="screenshot-wrap", imageOutput("img_avg"))
       )
     } else {
-      has1 <- file_ok1(as.character(r$app_screenshot1_path[[1]]))
-      has2 <- file_ok1(as.character(r$app_screenshot2_path[[1]]))
-      has3 <- file_ok1(as.character(r$app_screenshot3_path[[1]]))
+      p1 <- if ("app_screenshot1_path" %in% names(r)) as.character(r$app_screenshot1_path[[1]]) else NA_character_
+      p2 <- if ("app_screenshot2_path" %in% names(r)) as.character(r$app_screenshot2_path[[1]]) else NA_character_
+      p3 <- if ("app_screenshot3_path" %in% names(r)) as.character(r$app_screenshot3_path[[1]]) else NA_character_
+      
+      has1 <- file_ok1(p1)
+      has2 <- file_ok1(p2)
+      has3 <- file_ok1(p3)
+      
+      tabs <- list()
+      if (has1) tabs[[length(tabs)+1]] <- tabPanel("Screenshot 1", tags$div(class="screenshot-wrap", imageOutput("img_app1")))
+      if (has2) tabs[[length(tabs)+1]] <- tabPanel("Screenshot 2", tags$div(class="screenshot-wrap", imageOutput("img_app2")))
+      if (has3) tabs[[length(tabs)+1]] <- tabPanel("Screenshot 3", tags$div(class="screenshot-wrap", imageOutput("img_app3")))
       
       tags$div(class="panel",
-               tags$h4("Screenshot(s)"),
-               if (has1) tags$div(class="screenshot-wrap", imageOutput("img_app1")),
-               if (has2) tags$div(class="screenshot-wrap", imageOutput("img_app2")),
-               if (has3) tags$div(class="screenshot-wrap", imageOutput("img_app3")),
-               if (!(has1 || has2 || has3)) tags$p("No image files found for this task.")
+               tags$h4("Screenshot(s) (tabs; click to fullscreen)"),
+               if (length(tabs) > 0) do.call(tabsetPanel, c(id = "app_tabs", tabs))
+               else tags$p("No image files found for this task.")
       )
     }
   })
@@ -498,9 +614,10 @@ server <- function(input, output, session) {
                tags$li(tags$code(ANN_AVG_PATH)),
                tags$li(tags$code(ANN_APP_PATH))
              ),
-             tags$p(class="muted", "You can now close this window and send the results back.")
+             tags$p(class="muted", "Next step: run 04_bundle_results.R and send the ZIP back.")
     )
   })
+  
 }
 
 message("Launching Shiny app…")

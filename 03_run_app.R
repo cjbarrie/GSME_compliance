@@ -1,5 +1,3 @@
-#!/usr/bin/env Rscript
-
 suppressPackageStartupMessages({
   library(shiny)
   library(readr)
@@ -161,6 +159,15 @@ fmt_day <- function(device, day) {
   if (!grepl("android", tolower(device))) return(NA_character_)
   if (is.na(day) || !nzchar(day)) return(NA_character_)
   day
+}
+
+fmt_date <- function(device, date) {
+  device <- as.character(device)
+  date <- as.character(date)
+  if (is.na(device) || !nzchar(device)) return(NA_character_)
+  if (!grepl("android", tolower(device))) return(NA_character_)
+  if (is.na(date) || !nzchar(date)) return(NA_character_)
+  date
 }
 
 fmt_hm <- function(h, m) {
@@ -514,11 +521,13 @@ server <- function(input, output, session) {
   output$numbers_panel <- renderUI({
     if (state$phase == "done") return(NULL)
     r <- current(); if (is.null(r)) return(NULL)
-    
+
     device <- if ("device" %in% names(r)) as.character(r$device[[1]]) else NA_character_
     day    <- if ("screenshot_day" %in% names(r)) as.character(r$screenshot_day[[1]]) else NA_character_
+    date   <- if ("android_target_date" %in% names(r)) as.character(r$android_target_date[[1]]) else NA_character_
     day2   <- fmt_day(device, day)
-    
+    date2  <- fmt_date(device, date)
+
     meta <- list(
       tags$div(class="meta-k", "Respondent"), tags$div(class="meta-v", as.character(r$respondent_id[[1]])),
       tags$div(class="meta-k", "Device"),    tags$div(class="meta-v", ifelse(is.na(device) | !nzchar(device), "NA", device))
@@ -526,6 +535,10 @@ server <- function(input, output, session) {
     if (!is.na(day2) && nzchar(day2)) {
       meta <- c(meta,
                 list(tags$div(class="meta-k", "Day (Android)"), tags$div(class="meta-v", day2)))
+    }
+    if (!is.na(date2) && nzchar(date2)) {
+      meta <- c(meta,
+                list(tags$div(class="meta-k", "Date of Last Week Day (Android)"), tags$div(class="meta-v", date2)))
     }
     
     if (state$phase == "avg") {

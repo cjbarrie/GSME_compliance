@@ -21,7 +21,7 @@ suppressPackageStartupMessages({
 # CONFIG (EDIT THESE)
 # ----------------------------
 TEAM_SLUG <- "team_example"
-WAVE <- "baseline"   # "baseline" or "endline"
+WAVE <- "endline"   # "baseline" or "endline"
 
 # Files we try to include (if present)
 FILES_TO_BUNDLE <- c(

@@ -1,0 +1,3 @@
+participant_id,device_baseline,os_baseline,browser_baseline,device_endline,os_endline,browser_endline,os_match,browser_match,device_match
+P001,iOS,Macintosh,Chrome,Android,Macintosh,Chrome,TRUE,TRUE,FALSE
+P002,Android,Macintosh,Chrome,iOS,Macintosh,Chrome,TRUE,TRUE,FALSE

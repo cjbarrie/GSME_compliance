@@ -1,0 +1,13 @@
+# Python dependencies for leadership team scripts
+pandas>=2.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# 15_edge_anomaly.py - TruFor tamper detection
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+pillow>=10.0.0
+numpy>=1.24.0
+
+# 16_tineye_check.py - Google Vision Web Detection (reverse image search)
+google-cloud-vision>=3.4.0

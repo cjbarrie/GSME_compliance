@@ -1,0 +1,7 @@
+task_id,image_col,image_path,status,error,n_matches,total_results,top_match_domain,top_match_url,top_match_score
+avg_R_2S1Te6xrLiZcMsT_0001,total_screenshot_path,data/qualtrics/team_example/baseline/uploads/R_2S1Te6xrLiZcMsT/Screenshot_2025_12_22_at_1.08.56_PM.png,error,"APIError:
+                   code    = 401
+                   message = ['Please provide a valid API key.']",0,0,,,
+avg_R_8Ht7EwvrLWYcYT9_0002,total_screenshot_path,data/qualtrics/team_example/baseline/uploads/R_8Ht7EwvrLWYcYT9/ljjVlnYJE6a1dKeJiOdrxRpFDI.png,error,"APIError:
+                   code    = 401
+                   message = ['Please provide a valid API key.']",0,0,,,

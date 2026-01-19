@@ -5,3 +5,9 @@
 
 # macOS
 .DS_Store
+
+# Environment variables (API keys)
+.env
+
+# Credentials (service accounts, etc.)
+credentials/

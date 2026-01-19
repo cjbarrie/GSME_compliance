@@ -1,0 +1,3 @@
+task_id,respondent_id,reviewer,screenshot_correct,numbers_match,notes,annotated_at,model_used
+avg_R_2S1Te6xrLiZcMsT_0001,R_2S1Te6xrLiZcMsT,AI_OpenRouter,No,Yes,"While this is from Android Digital Wellbeing Dashboard and shows 3h 22m matching the reported time, it displays 'Sun, May 6' instead of the required Friday, Dec 19 2025. Wrong date.",2026-01-15T15:53:28.781141,anthropic/claude-3.5-sonnet
+avg_R_8Ht7EwvrLWYcYT9_0002,R_8Ht7EwvrLWYcYT9,AI_OpenRouter,Yes,No,"iOS Screen Time showing Week tab with 'Last Week's Average' heading and S-M-T-W-T-F-S bar chart. Shows 50h 16m total screen time, which does not match reported value of 7h 35m.",2026-01-15T15:53:42.669947,anthropic/claude-3.5-sonnet

@@ -11,3 +11,4 @@
 
 # Credentials (service accounts, etc.)
 credentials/
+__pycache__/

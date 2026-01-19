@@ -82,7 +82,15 @@ After receiving bundles from country teams:
    - Requires: `GOOGLE_APPLICATION_CREDENTIALS` service account
    - Outputs: `web_detection_report.csv`
 
-8. **Combine All Outputs**: `17_combine_all.R`
+8. **AI-Generated Image Detection**: `17_sightengine_ai_detection.py`
+   - Uses Sightengine API to detect AI-generated images
+   - Detects images from Stable Diffusion, MidJourney, DALL-E, Flux, etc.
+   - Returns ai_generated score (0-1) where higher = more likely AI
+   - Default threshold: 0.5 for flagging
+   - Requires: `SIGHTENGINE_API_USER` and `SIGHTENGINE_API_SECRET`
+   - Outputs: `sightengine_ai_report_avg.csv`, `sightengine_ai_report_app.csv`
+
+9. **Combine All Outputs**: `18_combine_all.R`
    - Combines all compliance check outputs into a single tidy CSV
    - One row per respondent with both baseline and endline data
    - Converts Yes/No/Unsure to binary (1/0/NA)
@@ -391,6 +399,8 @@ python 16_web_detection_check.py \
 - `QUALTRICS_API_KEY`: Required for download scripts (set via `~/.Renviron` or `export`)
 - `OPENROUTER_API_KEY`: Required for auto-validation script (set in `.env` file)
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to GCP service account JSON for web detection script
+- `SIGHTENGINE_API_USER`: Sightengine API user ID for AI-generated image detection
+- `SIGHTENGINE_API_SECRET`: Sightengine API secret for AI-generated image detection
 - `ANNOT_SEED`: Override random seed for sampling (default: 12345)
 - `ANNOT_N_AVG`: Override average task sample size (default: 100)
 - `ANNOT_N_APP`: Override app-level task sample size (default: 100)
@@ -399,7 +409,7 @@ python 16_web_detection_check.py \
 
 ```
 data/qualtrics/<TEAM_SLUG>/
-├── combined_compliance_report.csv   # Final combined report (17_)
+├── combined_compliance_report.csv   # Final combined report (18_)
 ├── device_consistency.csv           # Cross-wave device comparison (14_)
 ├── baseline/
 │   ├── responses.csv                # Raw Qualtrics export
@@ -425,6 +435,8 @@ data/qualtrics/<TEAM_SLUG>/
 │       ├── trufor_crops/            # Flagged region crops
 │       ├── web_detection_report_avg.csv  # Reverse image search - avg (16_)
 │       ├── web_detection_report_app.csv  # Reverse image search - app (16_)
+│       ├── sightengine_ai_report_avg.csv # AI-generated detection - avg (17_)
+│       ├── sightengine_ai_report_app.csv # AI-generated detection - app (17_)
 │       └── bundle_<TEAM_SLUG>_baseline_<timestamp>.zip
 └── endline/
     └── ...same structure...

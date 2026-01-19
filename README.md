@@ -38,7 +38,8 @@ It supports:
 * `14_device_consistency.R` - Compare devices across baseline/endline waves
 * `15_edge_anomaly.py` - TruFor tamper detection (requires external tools)
 * `16_web_detection_check.py` - Reverse image search (requires Google Cloud)
-* `17_combine_all.R` - Combine all outputs into single report
+* `17_sightengine_ai_detection.py` - AI-generated image detection (requires Sightengine)
+* `18_combine_all.R` - Combine all outputs into single report
 
 ---
 
@@ -118,13 +119,14 @@ project/
   14_device_consistency.R
   15_edge_anomaly.py
   16_web_detection_check.py
-  17_combine_all.R
+  17_sightengine_ai_detection.py
+  18_combine_all.R
   .env  (leadership only - API keys)
 
   data/
     qualtrics/
       <TEAM_SLUG>/
-        combined_compliance_report.csv  # Final combined report (17_)
+        combined_compliance_report.csv  # Final combined report (18_)
         device_consistency.csv          # Cross-wave device comparison (14_)
         baseline/
           responses.csv
@@ -153,6 +155,8 @@ project/
             trufor_report_app.csv         # (15_)
             web_detection_report_avg.csv  # (16_)
             web_detection_report_app.csv  # (16_)
+            sightengine_ai_report_avg.csv # (17_)
+            sightengine_ai_report_app.csv # (17_)
         endline/
           ...same structure...
 ```

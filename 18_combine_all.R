@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 # ============================================================
-# 17_combine_all.R
+# 18_combine_all.R
 #
 # Combines all compliance check outputs into a single tidy CSV
 # with one row per respondent.
@@ -155,6 +155,27 @@ load_web_detection <- function(wave_dir, type = "avg") {
     summarise(web_match = as.integer(any(web_match == 1, na.rm = TRUE)), .groups = "drop")
 }
 
+# Load sightengine AI-generated detection report for one wave/type
+# Returns: respondent_id, ai_generated (1/0 based on threshold)
+load_sightengine <- function(wave_dir, type = "avg", threshold = 0.5) {
+  path <- file.path(wave_dir, "results", paste0("sightengine_ai_report_", type, ".csv"))
+  df <- safe_read_csv(path)
+  if (is.null(df)) return(NULL)
+  if (nrow(df) == 0) return(NULL)
+
+  # Extract respondent_id from task_id
+  prefix <- paste0(type, "_")
+
+  # Aggregate: flagged if ANY image exceeds threshold
+  df %>%
+    mutate(
+      respondent_id = sub(paste0("^", prefix, "(.+)_\\d+$"), "\\1", task_id),
+      ai_flagged = as.integer(!is.na(ai_generated_score) & ai_generated_score >= threshold)
+    ) %>%
+    group_by(respondent_id) %>%
+    summarise(ai_flagged = as.integer(any(ai_flagged == 1, na.rm = TRUE)), .groups = "drop")
+}
+
 # Load device consistency (cross-wave, at team level)
 # Returns: participant_id (for cross-wave join), device_changed
 load_device_consistency <- function(base_dir) {
@@ -265,6 +286,8 @@ combine_wave <- function(wave_dir, prefix) {
   trufor_app <- load_trufor(wave_dir, "app")
   web_avg <- load_web_detection(wave_dir, "avg")
   web_app <- load_web_detection(wave_dir, "app")
+  sightengine_avg <- load_sightengine(wave_dir, "avg")
+  sightengine_app <- load_sightengine(wave_dir, "app")
 
   # Start building the result
   result <- base_df
@@ -351,6 +374,21 @@ combine_wave <- function(wave_dir, prefix) {
     result[[paste0(prefix, "_app_web_match")]] <- NA_integer_
   }
 
+  # Add sightengine AI-generated detection
+  if (!is.null(sightengine_avg)) {
+    sightengine_avg <- sightengine_avg %>% rename(!!paste0(prefix, "_avg_ai_gen") := ai_flagged)
+    result <- result %>% left_join(sightengine_avg, by = "respondent_id")
+  } else {
+    result[[paste0(prefix, "_avg_ai_gen")]] <- NA_integer_
+  }
+
+  if (!is.null(sightengine_app)) {
+    sightengine_app <- sightengine_app %>% rename(!!paste0(prefix, "_app_ai_gen") := ai_flagged)
+    result <- result %>% left_join(sightengine_app, by = "respondent_id")
+  } else {
+    result[[paste0(prefix, "_app_ai_gen")]] <- NA_integer_
+  }
+
   result
 }
 
@@ -395,7 +433,8 @@ if (!is.null(baseline_df) && !is.null(endline_df)) {
                "el_app_h_correct", "el_app_h_match", "el_app_ai_correct", "el_app_ai_match",
                "el_avg_upload_sec", "el_app_upload_sec",
                "el_avg_trufor_flagged", "el_app_trufor_flagged",
-               "el_avg_web_match", "el_app_web_match")
+               "el_avg_web_match", "el_app_web_match",
+               "el_avg_ai_gen", "el_app_ai_gen")
   for (col in el_cols) combined[[col]] <- NA
 } else if (!is.null(endline_df)) {
   combined <- endline_df %>% rename(el_respondent_id = respondent_id)
@@ -405,7 +444,8 @@ if (!is.null(baseline_df) && !is.null(endline_df)) {
                "bl_app_h_correct", "bl_app_h_match", "bl_app_ai_correct", "bl_app_ai_match",
                "bl_avg_upload_sec", "bl_app_upload_sec",
                "bl_avg_trufor_flagged", "bl_app_trufor_flagged",
-               "bl_avg_web_match", "bl_app_web_match")
+               "bl_avg_web_match", "bl_app_web_match",
+               "bl_avg_ai_gen", "bl_app_ai_gen")
   for (col in bl_cols) combined[[col]] <- NA
 } else {
   stop("No data found for either wave.", call. = FALSE)
@@ -434,6 +474,8 @@ col_order <- c(
   "bl_avg_trufor_flagged", "bl_app_trufor_flagged", "el_avg_trufor_flagged", "el_app_trufor_flagged",
   # Web detection
   "bl_avg_web_match", "bl_app_web_match", "el_avg_web_match", "el_app_web_match",
+  # AI-generated detection (Sightengine)
+  "bl_avg_ai_gen", "bl_app_ai_gen", "el_avg_ai_gen", "el_app_ai_gen",
   # Device consistency
   "device_changed"
 )
